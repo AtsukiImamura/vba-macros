@@ -1,0 +1,173 @@
+
+Sub OnWorkSheetChanged()
+
+    ' コピーした先のシートで値が変化したときに無限ループになるのを防ぐ
+    If ActiveSheet.Index >= 3 Then
+        Exit Sub
+    End If
+    
+    
+    ' ---------------- Constants ------------------------
+    
+    ' 現在のシートインデックス（最後に表示する用）
+    Dim sheetIndex As Integer: sheetIndex = ActiveSheet.Index
+    
+    ' 更新後の値を保存するシート
+    Dim SNAME_NEW As String: SNAME_NEW = "更新後"
+    ' 更新前の値を保存するシート
+    Dim SNAME_OLD As String: SNAME_OLD = "更新前"
+    ' 成果物の値を保存するシート
+    Dim SNAME_DEST As String: SNAME_DEST = "成果物"
+    
+    ' 強調表示カラー
+    Dim HIGHLIGHT_COLOR As Long
+    HIGHLIGHT_COLOR = RGB(255, 0, 0)
+    ' ノーマルカラー
+    Dim NORMAL_COLOR As Long
+    NORMAL_COLOR = RGB(0, 0, 0)
+    
+    
+    
+    
+    
+    ' ---------------- Main -----------------------------
+    
+    ' 状態チェック
+    If Worksheets.Count < 2 Then
+        MsgBox "２シート用意した状態で値を更新してください"
+        Exit Sub
+    End If
+    
+    ' 事前準備
+    Worksheets(1).Name = SNAME_NEW
+    Worksheets(2).Name = SNAME_OLD
+    Application.DisplayAlerts = False
+        
+    Dim i As Integer
+    For i = 3 To Worksheets.Count
+        Worksheets(i).Delete
+    Next i
+    
+    Worksheets(SNAME_OLD).Copy After:=Worksheets(SNAME_OLD)
+    ActiveSheet.Name = SNAME_DEST
+    
+    
+    ' 更新後データ: 使用されている範囲
+    Dim newDataRange As Range
+    Set newDataRange = Worksheets(SNAME_NEW).UsedRange
+    
+    ' 更新前データ: 使用されている範囲
+    Dim oldDataRange As Range
+    Set oldDataRange = Worksheets(SNAME_OLD).UsedRange
+   
+   
+    ' 更新前・更新後の使用範囲を包含する範囲を取得（Union使いたいけど別シートはダメらしい泣）
+    Dim targetRange As Range
+    
+    Dim rFrom, rTo, cFrom, cTo As Integer
+    If newDataRange.Column < oldDataRange.Column Then
+        cFrom = oldDataRange.Column
+    Else
+        cFrom = newDataRange.Column
+    End If
+    
+    If newDataRange.Column + newDataRange.Columns.Count < newDataRange.Column + oldDataRange.Columns.Count Then
+        cTo = oldDataRange.Column + oldDataRange.Columns.Count
+    Else
+        cTo = newDataRange.Column + newDataRange.Columns.Count
+    End If
+    
+    
+    If newDataRange.Row < oldDataRange.Row Then
+        rFrom = oldDataRange.Row
+    Else
+        rFrom = newDataRange.Row
+    End If
+    
+    If newDataRange.Row + newDataRange.Rows.Count < oldDataRange.Row + oldDataRange.Rows.Count Then
+        rTo = oldDataRange.Row + oldDataRange.Rows.Count
+    Else
+        rTo = newDataRange.Row + newDataRange.Rows.Count
+    End If
+    
+    With Worksheets(SNAME_OLD)
+        Set targetRange = .Range(.Cells(rFrom, cFrom), .Cells(rTo, cTo))
+    End With
+    
+    
+    ' 対象範囲のセルに対して差分を評価する
+    For Each c In targetRange
+        Dim newDataCell As Range
+        Set newDataCell = Worksheets(SNAME_NEW).Cells(c.Row, c.Column)
+        Dim oldDataCell As Range
+        Set oldDataCell = Worksheets(SNAME_OLD).Cells(c.Row, c.Column)
+        Dim dstDataCell As Range
+        Set dstDataCell = Worksheets(SNAME_DEST).Cells(c.Row, c.Column)
+        
+        ' 一旦文字関連の書式をクリア
+        dstDataCell.Font.Strikethrough = False
+        dstDataCell.Font.Color = NORMAL_COLOR
+        
+        If newDataCell.Value = "" Then
+            If oldDataCell.Value = "" Then
+                
+            Else
+                dstDataCell.Value = oldDataCell.Value
+                dstDataCell.Font.Strikethrough = True
+                dstDataCell.Font.Color = HIGHLIGHT_COLOR
+            End If
+            
+        Else
+            ' 内容が同じの場合
+            If newDataCell.Value = oldDataCell.Value Then
+                dstDataCell.Value = oldDataCell.Value
+            ' 内容が異なる場合
+            '   1. 追加・変更された場所は赤字で表示
+            '   2. 削除されたところは取り消し線で表示
+            Else
+                Dim oldValue As String: oldValue = oldDataCell.Value
+                Dim newValue As String: newValue = newDataCell.Value
+                
+                Dim charCnt As Integer: charCnt = 1
+                
+                
+                ' 一旦長いほうの文字列を入れておく
+                If Len(oldValue) < Len(newValue) Then
+                    dstDataCell.Value = newValue
+                Else
+                    dstDataCell.Value = oldValue
+                End If
+                
+                ' 文字列を１文字ずつ処理
+                While charCnt <= Len(oldValue) Or charCnt <= Len(newValue)
+                    Dim isCharDeleted As Boolean: isCharDeleted = False
+                    Dim oldChar As String: oldChar = ""
+                    Dim newChar As String: newChar = ""
+                    
+                    If charCnt <= Len(oldValue) Then
+                        oldChar = Mid(oldValue, charCnt, 1)
+                    End If
+                    
+                    If charCnt <= Len(newValue) Then
+                        newChar = Mid(newValue, charCnt, 1)
+                    Else
+                        ' 読み込み終えているなら削除されたということ
+                        isCharDeleted = True
+                    End If
+                    
+                    If oldChar <> newChar Then
+                        dstDataCell.Characters(Start:=charCnt, Length:=1).Font.Color = HIGHLIGHT_COLOR
+                        ' 削除分に対しては取り消し線
+                        If isCharDeleted Then
+                            dstDataCell.Characters(Start:=charCnt, Length:=1).Font.Strikethrough = True
+                        End If
+                        
+                    End If
+                    charCnt = charCnt + 1
+                Wend
+            End If
+        End If
+    Next c
+    
+    Worksheets(sheetIndex).Select
+End Sub
