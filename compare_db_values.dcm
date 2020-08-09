@@ -1,0 +1,102 @@
+Sub OnValueChanged()
+
+
+    Application.DisplayAlerts = False
+    
+    
+    ' -------------------------- Constant Values ---------------------------------
+    
+    Dim SNAME_COMP1 As String: SNAME_COMP1 = "比較元"
+    Dim SNAME_COMP2 As String: SNAME_COMP2 = "比較相手"
+    Dim SNAME_OUT As String: SNAME_OUT = "結果"
+    ' キーが異なる場合の強調表示色
+    Dim KEY_HIGHLIGHT_COLOR As Long: KEY_HIGHLIGHT_COLOR = RGB(255, 240, 200)
+    ' 値が異なる場合の強調表示色
+    Dim VALUE_HIGHLIGHT_COLOR As Long: VALUE_HIGHLIGHT_COLOR = RGB(255, 0, 0)
+
+    
+    
+    ' --------------------------        Main      --------------------------------
+
+    ' 不要シート削除
+    Dim i As Integer
+    For i = 3 To Worksheets.Count
+        Worksheets(i).Delete
+    Next i
+    Worksheets.Add After:=Worksheets(SNAME_COMP2)
+    ActiveSheet.Name = SNAME_OUT
+    Worksheets(SNAME_COMP1).Select
+    
+    Dim compareSheets(2) As String
+    compareSheets(1) = SNAME_COMP1
+    compareSheets(2) = SNAME_COMP2
+    
+    
+    ' 比較元・相手を両方処理
+    Dim sheetCnt As Integer
+    For sheetCnt = 1 To 2
+        Dim targetRange As Range
+        Dim sname As String: sname = compareSheets(sheetCnt)
+        With Worksheets(sname)
+            Set targetRange = .Range(.Cells(1, 1), .Cells(.UsedRange.Rows.Count, 1))
+        End With
+        Dim rowCnt As Integer: rowCnt = 1
+        
+        For Each c In targetRange
+            Dim str As String: str = c.Value
+            Dim charCnt As Integer: charCnt = 1
+            Dim bktLv As Integer: bktLv = 0
+            Dim curKey As String: curKey = ""
+            Dim curValue As String: curValue = ""
+            
+            ' 文字を1文字ずつ処理してkeyとvalueに分解する
+            For charCnt = 1 To Len(str)
+                Dim char As String: char = Mid(str, charCnt, 1)
+                If char = "(" Then
+                    bktLv = bktLv + 1
+                ElseIf char = ")" Then
+                    bktLv = bktLv - 1
+                    If bktLv = 0 Then
+                        Worksheets(SNAME_OUT).Cells(rowCnt, sheetCnt * 3 - 2).NumberFormatLocal = "@"
+                        Worksheets(SNAME_OUT).Cells(rowCnt, sheetCnt * 3 - 2).Value = Trim(curKey)
+                        Worksheets(SNAME_OUT).Cells(rowCnt, sheetCnt * 3 - 1).NumberFormatLocal = "@"
+                        Worksheets(SNAME_OUT).Cells(rowCnt, sheetCnt * 3 - 1).Value = Trim(curValue)
+                        curKey = ""
+                        curValue = ""
+                        rowCnt = rowCnt + 1
+                    End If
+                Else
+                    If bktLv > 0 Then
+                        curValue = curValue + char
+                    Else
+                        curKey = curKey + char
+                    End If
+                End If
+                
+                ' valueの中に ")" などが含まれていて正しく分析できなかった場合
+                If bktLv < 0 Then
+                    MsgBox "分析が正常に終了できませんでした E_CODE: 501"
+                    Exit Sub
+                End If
+            Next charCnt
+        Next c
+    Next sheetCnt
+    
+    
+    ' 差分を強調表示する
+    Dim oRowCnt As Integer
+    oRowCnt = 1
+    
+    For oRowCnt = 1 To Worksheets(SNAME_OUT).UsedRange.Rows.Count
+        If Worksheets(SNAME_OUT).Cells(oRowCnt, 1) <> Worksheets(SNAME_OUT).Cells(oRowCnt, 4) Then
+            Worksheets(SNAME_OUT).Cells(oRowCnt, 1).Interior.Color = KEY_HIGHLIGHT_COLOR
+        End If
+        If Worksheets(SNAME_OUT).Cells(oRowCnt, 2) <> Worksheets(SNAME_OUT).Cells(oRowCnt, 5) Then
+            Worksheets(SNAME_OUT).Cells(oRowCnt, 2).Font.Color = VALUE_HIGHLIGHT_COLOR
+        End If
+    Next oRowCnt
+    
+    Application.DisplayAlerts = True
+    
+End Sub
+
