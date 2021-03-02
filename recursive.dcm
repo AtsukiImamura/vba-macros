@@ -1,0 +1,60 @@
+
+'
+' x: 上からのレベル
+' y: 左からのレベル
+' source: 描画するソース
+'
+' @returns curY: 呼び出しによって描画した最後のyレベル
+'
+private function drawRelations(byval x as integer, byval y as integer, byval source as string)
+    
+    dim sourceInfo
+
+    ' 1: 指定のソースを描画
+
+    resSheet.cells(x * 20 + ROW_SOURCE_NAME, y * 4 + 1).value = "名称"
+    resSheet.cells(x * 20 + ROW_SOURCE_NAME, y * 4 + 2).value = sourceInfo.name
+    resSheet.cells(x * 20 + ROW_FILE_PATH, y * 4 + 1).value = "ファイルパス"
+    resSheet.cells(x * 20 + ROW_FILE_PATH, y * 4 + 2).value = sourceInfo.path
+    ....
+
+
+    ' 2: 親ソースを再帰的に描画
+    dim originSources
+    originSources = getOriginSources(source)
+    dim curY as integer: curY = y
+    for each origin in originSources
+        curY = drawRelations(x + 1, curY + 1, origin)
+    next origin
+
+    drawRelations = curY
+
+end function
+
+
+private function getOriginSources(byval source as string)
+
+    dim sources(numAllRow) as SourceInfo
+
+    dim cnt, sCnt as integer
+    sCnt = 0
+    for cnt = 2 to numAllRow
+        if dataSheet.cells(cnt, COL_OUT_DSN).value = source then
+            source = new SourceInfo
+            source.name = dataSheet.cells(cnt, COL_NAME)
+            ...
+            ...
+
+            sources(sCnt) = source
+            sCnt = sCnt + 1
+        end if
+    next
+
+    dim res(sCnt) as SourceInfo
+    for sCnt = 0 to UBound(sources)
+        res(sCnt) = sources(sCnt)
+    next
+
+    getOriginSources = res
+
+end function
